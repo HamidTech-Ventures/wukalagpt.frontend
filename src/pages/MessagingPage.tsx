@@ -97,19 +97,25 @@ export default function MessagingPage() {
   // Handle direct navigation to a chat
   useEffect(() => {
     const initDirectChat = async () => {
-      if (targetLawyerId && conversations.length > 0) {
-        const existing = conversations.find(c => c.targetUserId === targetLawyerId);
-        if (existing) {
+      if (!targetLawyerId || isLoading) return;
+
+      const existing = conversations.find(c => c.targetUserId === targetLawyerId);
+      if (existing) {
+        if (selectedConversation?.id !== existing.id) {
           setSelectedConversation(existing);
           fetchMessages(existing.id);
           setShowMobileChat(true);
-        } else {
-          // If no existing conversation, fetch lawyer details to create a temporary conversation
+        }
+      } else {
+        const tempId = `temp-${targetLawyerId}`;
+        const hasTemp = conversations.some(c => c.id === tempId);
+        
+        if (!hasTemp) {
           try {
             const lawyer = await api.getPublicLawyer(targetLawyerId);
             if (lawyer) {
               const tempConv: Conversation = {
-                id: `temp-${targetLawyerId}`,
+                id: tempId,
                 targetUserId: targetLawyerId,
                 targetUserName: lawyer.fullName,
                 targetUserAvatar: lawyer.profileImage,
@@ -131,7 +137,7 @@ export default function MessagingPage() {
       }
     };
     initDirectChat();
-  }, [targetLawyerId, conversations.length]);
+  }, [targetLawyerId, isLoading, conversations, selectedConversation]);
 
   const fetchConversations = async () => {
     try {

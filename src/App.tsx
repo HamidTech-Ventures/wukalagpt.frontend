@@ -23,6 +23,7 @@ import DocumentsPage from "./pages/DocumentsPage";
 import LawyersPage from "./pages/LawyersPage";
 import LawyerDetailPage from "./pages/LawyerDetailPage";
 import LawyerProfilePage from "./pages/LawyerProfilePage";
+import ClientProfilePage from "./pages/ClientProfilePage";
 import NewsPage from "./pages/NewsPage";
 import DictionaryPage from "./pages/DictionaryPage";
 import BookReaderPage from "./pages/BookReaderPage";
@@ -131,9 +132,14 @@ const App = () => {
             </ProtectedRoute>
           } />
           <Route path="/lawyer/:id" element={<Layout><LawyerDetailPage /></Layout>} />
-          <Route path="/lawyer-profile" element={
-            <ProtectedRoute allowedRoles={['lawyer']}>
+          <Route path="/lawyer-profile/:id?" element={
+            <ProtectedRoute allowedRoles={['lawyer', 'client', 'admin']}>
               <Layout><LawyerProfilePage /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/client-profile/:id?" element={
+            <ProtectedRoute allowedRoles={['client', 'lawyer', 'admin']}>
+              <Layout><ClientProfilePage /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/news" element={<Layout><NewsPage /></Layout>} />

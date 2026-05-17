@@ -1051,7 +1051,7 @@ const LawyerProfilePage = () => {
             <Button variant="outline" onClick={() => setIsExpOpen(false)}>Cancel</Button>
             <Button onClick={saveExperience}>Save Experience</Button>
           </DialogFooter>
-        </Dialog>
+        </DialogContent>
       </Dialog>
 
       {/* --- EDUCATION DIALOG --- */}
@@ -1114,7 +1114,7 @@ const LawyerProfilePage = () => {
             <Button variant="outline" onClick={() => setIsEduOpen(false)}>Cancel</Button>
             <Button onClick={saveEducation}>Save Qualification</Button>
           </DialogFooter>
-        </Dialog>
+        </DialogContent>
       </Dialog>
     </div>
   );

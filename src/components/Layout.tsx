@@ -507,6 +507,14 @@ export default function Layout({ children }: LayoutProps) {
                         </Link>
                       </DropdownMenuItem>
                     )}
+                    {(user?.role || '').toLowerCase() === 'client' && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/client-profile" className="cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          My Profile
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                       <LogOut className="mr-2 h-4 w-4" />
                       Logout

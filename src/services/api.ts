@@ -610,7 +610,7 @@ export const api = {
    * Get all saved lawyer profiles for the current user
    */
   getSavedProfiles: async () => {
-    return request<PublicLawyerProfile[]>('/SavedProfile', {
+    return request<PublicLawyerProfile[]>('/SavedProfiles', {
       method: 'GET',
     }, true);
   },
@@ -619,9 +619,8 @@ export const api = {
    * Toggle a lawyer profile as saved
    */
   saveProfile: async (lawyerId: string) => {
-    return request<{ message: string }>('/SavedProfile', {
+    return request<{ message: string }>(`/SavedProfiles/${lawyerId}/toggle`, {
       method: 'POST',
-      body: JSON.stringify({ lawyerId }),
     }, true);
   },
 
@@ -1169,6 +1168,14 @@ export const api = {
     return request<any>('/Hearings/stats', {
       method: 'GET',
       params,
+    }, true);
+  },
+
+  // ==================== CLIENT PROFILE ENDPOINTS ====================
+  updateClientProfile: async (id: string, data: any) => {
+    return request<any>(`/Clients/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     }, true);
   },
 };
