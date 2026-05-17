@@ -288,6 +288,16 @@ export const api = {
   },
 
   /**
+   * Upload proof document/image
+   */
+  uploadProofDocument: async (formData: FormData) => {
+    return request<{ url: string }>('/Lawyers/me/document', {
+      method: 'POST',
+      body: formData,
+    }, true);
+  },
+
+  /**
    * Get lawyer dashboard overview statistics and items
    */
   getLawyerDashboardOverview: async () => {
@@ -1197,13 +1207,13 @@ export enum DocumentClassification {
 }
 
 export interface ExperienceRequest {
-  title: string;
-  company: string;
-  location: string;
+  role: string;
+  firmCompany: string;
   startDate: string;
   endDate?: string;
   isCurrent: boolean;
-  description: string;
+  shortBio?: string;
+  proofUrl?: string;
 }
 
 export interface ExperienceResponse extends ExperienceRequest {
@@ -1211,13 +1221,10 @@ export interface ExperienceResponse extends ExperienceRequest {
 }
 
 export interface EducationRequest {
-  degree: string;
-  institution: string;
-  fieldOfStudy: string;
-  startDate: string;
-  endDate?: string;
-  grade: string;
-  description: string;
+  instituteName: string;
+  degreeName: string;
+  grades: string;
+  degreeImageUrl?: string;
 }
 
 export interface EducationResponse extends EducationRequest {

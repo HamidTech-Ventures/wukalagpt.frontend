@@ -83,7 +83,6 @@ const lawyerNavigation = [
   { name: 'AI Assistant', href: '/chat', icon: MessageSquare },
   { name: 'Messages', href: '/messages', icon: MessageSquare },
   { name: 'Documents', href: '/documents', icon: FileText },
-  { name: 'Find Lawyers', href: '/lawyers', icon: Users },
 ];
 
 const adminNavigation = [

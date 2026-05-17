@@ -125,7 +125,11 @@ const App = () => {
               <Layout><DocumentsPage /></Layout>
             </ProtectedRoute>
           } />
-          <Route path="/lawyers" element={<Layout><LawyersPage /></Layout>} />
+          <Route path="/lawyers" element={
+            <ProtectedRoute allowedRoles={['client', 'admin']}>
+              <Layout><LawyersPage /></Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/lawyer/:id" element={<Layout><LawyerDetailPage /></Layout>} />
           <Route path="/lawyer-profile" element={
             <ProtectedRoute allowedRoles={['lawyer']}>

@@ -53,6 +53,7 @@ export default function MessagingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const targetLawyerId = searchParams.get('lawyerId');
+  const isLawyer = user?.role?.toLowerCase() === 'lawyer';
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -256,7 +257,11 @@ export default function MessagingPage() {
                  <MessageCircle className="h-8 w-8 opacity-20" />
                </div>
                <p className="text-sm font-medium">No conversations found</p>
-               <Button variant="outline" size="sm" onClick={() => navigate('/lawyers')}>Find a Lawyer</Button>
+                {isLawyer ? (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/lawyer-dashboard')}>Go to Dashboard</Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/lawyers')}>Find a Lawyer</Button>
+                )}
             </div>
           ) : (
             filteredConversations.map((conv) => (
@@ -480,11 +485,20 @@ export default function MessagingPage() {
               </div>
               <h3 className="text-2xl font-bold mb-3 tracking-tight">Select a Chat</h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-10">
-                Pick a conversation from the sidebar to start consulting with our verified legal experts in real-time.
+                {isLawyer 
+                  ? "Pick a conversation from the sidebar to communicate with your active clients in real-time."
+                  : "Pick a conversation from the sidebar to start consulting with our verified legal experts in real-time."
+                }
               </p>
-              <Button size="lg" className="bg-primary w-full shadow-lg shadow-primary/20 rounded-xl" onClick={() => navigate('/lawyers')}>
-                Browse Lawyers Directory
-              </Button>
+              {isLawyer ? (
+                <Button size="lg" className="bg-primary w-full shadow-lg shadow-primary/20 rounded-xl" onClick={() => navigate('/lawyer-dashboard')}>
+                  Go to Dashboard
+                </Button>
+              ) : (
+                <Button size="lg" className="bg-primary w-full shadow-lg shadow-primary/20 rounded-xl" onClick={() => navigate('/lawyers')}>
+                  Browse Lawyers Directory
+                </Button>
+              )}
             </div>
           </div>
         )}
