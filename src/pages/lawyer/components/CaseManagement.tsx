@@ -988,13 +988,14 @@ export default function CaseManagement() {
   }
 
   // ─── Case Detail View ──────────────────────────────────────────
-  if (selectedCase) {
-    const currentStageIndex = pipelineStages.findIndex(
-      s => s.status === selectedCase.status
-    );
+  const currentStageIndex = selectedCase
+    ? pipelineStages.findIndex(s => s.status === selectedCase.status)
+    : -1;
 
-    return (
-      <motion.div
+  return (
+    <div className="space-y-5">
+      {selectedCase ? (
+        <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
@@ -1317,13 +1318,9 @@ export default function CaseManagement() {
             )}
           </motion.div>
         </AnimatePresence>
-      </motion.div>
-    );
-  }
-
-  // ─── Case List View ────────────────────────────────────────────
-  return (
-    <div className="space-y-5">
+        </motion.div>
+      ) : (
+        <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -1527,6 +1524,8 @@ export default function CaseManagement() {
           ))
         )}
       </div>
+      </div>
+      )}
 
       {/* New Case Dialog */}
       <Dialog open={showNewCase} onOpenChange={setShowNewCase}>
