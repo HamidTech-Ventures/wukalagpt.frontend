@@ -21,6 +21,8 @@ import {
   Search,
   Menu,
   X,
+  MessageSquare,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,9 +37,13 @@ import SmartNotifications from './components/SmartNotifications';
 import PracticeAnalytics from './components/PracticeAnalytics';
 import TeamManagement from './components/TeamManagement';
 import DocumentVault from './components/DocumentVault';
+import MessagingPage from '@/pages/MessagingPage';
+import ChatPage from '@/pages/ChatPage';
 
 const sidebarItems = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'messages', label: 'Messages', icon: MessageSquare },
+  { id: 'mizan-ai', label: 'Mizan AI Assistant', icon: Bot },
   { id: 'cases', label: 'Case Management', icon: Briefcase },
   { id: 'calendar', label: 'Hearing Calendar', icon: Calendar },
   { id: 'clients', label: 'Client CRM', icon: Users },
@@ -64,6 +70,8 @@ export default function LawyerDashboard() {
   const renderContent = () => {
     switch (activeSection) {
       case 'overview': return <DashboardOverview onNavigate={setActiveSection} />;
+      case 'messages': return <MessagingPage />;
+      case 'mizan-ai': return <ChatPage />;
       case 'cases': return <CaseManagement />;
       case 'calendar': return <HearingCalendar />;
       case 'clients': return <ClientCRM />;
@@ -78,6 +86,7 @@ export default function LawyerDashboard() {
   };
 
   const activeItem = sidebarItems.find(i => i.id === activeSection);
+  const isFullBleed = activeSection === 'messages' || activeSection === 'mizan-ai';
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -284,7 +293,7 @@ export default function LawyerDashboard() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto bg-secondary/30">
+        <main className={cn("flex-1 bg-secondary/30", isFullBleed ? "overflow-hidden" : "overflow-y-auto")}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}
@@ -292,7 +301,7 @@ export default function LawyerDashboard() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
-              className="p-4 lg:p-6"
+              className={isFullBleed ? "h-full w-full p-0" : "p-4 lg:p-6"}
             >
               {renderContent()}
             </motion.div>
