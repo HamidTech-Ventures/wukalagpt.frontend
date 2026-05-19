@@ -152,27 +152,34 @@ export default function LawyerDashboard() {
         {/* User Section */}
         <div className={cn(
           'border-t border-border p-3',
-          sidebarCollapsed && 'flex flex-col items-center'
+          sidebarCollapsed && 'flex flex-col items-center gap-2'
         )}>
           {!sidebarCollapsed ? (
-            <div className="flex items-center gap-3 px-2 py-2">
-              <Avatar className="h-9 w-9 border-2 border-border">
+            <div className="flex items-center gap-3 px-2 py-2 cursor-pointer hover:bg-accent rounded-lg transition-colors group" onClick={() => navigate('/lawyer-profile')}>
+              <Avatar className="h-9 w-9 border-2 border-border group-hover:border-primary transition-colors">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold font-sans">
                   {user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'L'}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium font-sans text-foreground truncate">{user?.name || 'Lawyer'}</p>
+                <p className="text-sm font-medium font-sans text-foreground truncate group-hover:text-primary transition-colors">{user?.name || 'Lawyer'}</p>
                 <p className="text-[11px] text-muted-foreground truncate">{user?.email || ''}</p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={handleLogout}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
           ) : (
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-col items-center gap-2.5">
+              <Avatar className="h-9 w-9 border-2 border-border cursor-pointer hover:border-primary transition-colors" onClick={() => navigate('/lawyer-profile')} title="My Profile">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold font-sans">
+                  {user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'L'}
+                </AvatarFallback>
+              </Avatar>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={handleLogout} title="Logout">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </div>
       </aside>
@@ -227,16 +234,16 @@ export default function LawyerDashboard() {
                 })}
               </nav>
               <div className="border-t border-border p-3">
-                <div className="flex items-center gap-3 px-2 py-2">
-                  <Avatar className="h-9 w-9 border-2 border-border">
+                <div className="flex items-center gap-3 px-2 py-2 cursor-pointer hover:bg-accent rounded-lg transition-colors group" onClick={() => { navigate('/lawyer-profile'); setMobileMenuOpen(false); }}>
+                  <Avatar className="h-9 w-9 border-2 border-border group-hover:border-primary transition-colors">
                     <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold font-sans">
                       {user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'L'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium font-sans truncate">{user?.name || 'Lawyer'}</p>
+                    <p className="text-sm font-medium font-sans truncate group-hover:text-primary transition-colors">{user?.name || 'Lawyer'}</p>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={handleLogout}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
                     <LogOut className="h-4 w-4" />
                   </Button>
                 </div>
