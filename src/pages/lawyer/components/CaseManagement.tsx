@@ -467,6 +467,56 @@ export default function CaseManagement() {
       rawTimeline = [...rawTimeline, ...localUnique];
     }
 
+    // Map status if number
+    let statusStr = c.status;
+    if (typeof statusStr === 'number') {
+      const statusMap: Record<number, string> = {
+        0: 'Filed',
+        1: 'NoticeIssued',
+        2: 'Pleaded',
+        3: 'Evidence',
+        4: 'Arguments',
+        5: 'Decided',
+        6: 'Closed'
+      };
+      statusStr = statusMap[statusStr] || 'Filed';
+    } else if (typeof statusStr !== 'string') {
+      statusStr = 'Filed';
+    }
+
+    // Map caseType if number
+    let typeStr = c.caseType || c.type;
+    if (typeof typeStr === 'number') {
+      const typeMap: Record<number, string> = {
+        0: 'Civil',
+        1: 'Criminal',
+        2: 'Corporate',
+        3: 'Family',
+        4: 'Tax',
+        5: 'Labor',
+        6: 'IntellectualProperty',
+        7: 'Constitutional',
+        8: 'Other'
+      };
+      typeStr = typeMap[typeStr] || 'Civil';
+    } else if (typeof typeStr !== 'string') {
+      typeStr = 'Civil';
+    }
+
+    // Map priority if number
+    let priorityStr = c.priority;
+    if (typeof priorityStr === 'number') {
+      const priorityMap: Record<number, string> = {
+        0: 'Low',
+        1: 'Medium',
+        2: 'High',
+        3: 'Urgent'
+      };
+      priorityStr = priorityMap[priorityStr] || 'Medium';
+    } else if (typeof priorityStr !== 'string') {
+      priorityStr = 'Medium';
+    }
+
     return {
       id: c.id,
       title: c.title || '',
@@ -477,21 +527,39 @@ export default function CaseManagement() {
       court: c.courtName || c.court || '',
       judge: c.judgeName || c.judge || '',
       opposingCounsel: c.opposingCounsel || '',
-      type: c.caseType || c.type || '',
-      priority: c.priority || 'Medium',
-      status: c.status || 'Active',
+      type: typeStr,
+      priority: priorityStr,
+      status: statusStr as CaseStatus,
       stage: c.stage || 'Initial filing',
       nextHearing: safeDateString(c.nextHearing || c.nextDate),
       filedDate: safeDateString(c.filedDate || c.filingDate),
       description: c.description || '',
       linkedCases: Array.isArray(c.linkedCases) ? c.linkedCases.map((l: any) => l.linkedCaseId || l) : (cached.linkedCases || []),
-      timeline: Array.isArray(rawTimeline) ? rawTimeline.map((t: any) => ({
-        id: t.id,
-        date: safeDateString(t.eventDate || t.createdAt || t.date || new Date()),
-        title: t.title || '',
-        description: t.description || '',
-        type: (t.eventType || t.type || 'Hearing').toLowerCase()
-      })) : [],
+      timeline: Array.isArray(rawTimeline) ? rawTimeline.map((t: any) => {
+        let rawType = t.eventType !== undefined && t.eventType !== null ? t.eventType : t.type;
+        if (typeof rawType === 'number') {
+          const eventTypeMap: Record<number, string> = {
+            0: 'Filed',
+            1: 'Hearing',
+            2: 'Adjournment',
+            3: 'Order',
+            4: 'Submission',
+            5: 'Document',
+            6: 'Note',
+            7: 'StatusChange',
+            8: 'Appeal'
+          };
+          rawType = eventTypeMap[rawType] || 'Hearing';
+        }
+        const finalType = typeof rawType === 'string' ? rawType : 'Hearing';
+        return {
+          id: t.id,
+          date: safeDateString(t.eventDate || t.createdAt || t.date || new Date()),
+          title: t.title || '',
+          description: t.description || '',
+          type: finalType.toLowerCase()
+        };
+      }) : [],
       notes: Array.isArray(rawNotes) ? rawNotes.map((n: any) => ({
         id: n.id,
         author: n.authorId === c.leadLawyerId || !n.authorId ? 'Lead Counsel' : 'Internal User',
