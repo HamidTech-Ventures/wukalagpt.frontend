@@ -912,6 +912,35 @@ export default function CaseManagement() {
     }
   };
 
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!selectedCase) return;
+    if (!confirm("Are you sure you want to delete this event from the timeline?")) return;
+    try {
+      await api.deleteCaseTimelineEvent(selectedCase.id, eventId);
+      toast({ title: "Event Deleted", description: "The timeline event has been removed." });
+      await loadCaseDetails(selectedCase.id);
+    } catch (err: any) {
+      console.error("Failed to delete event", err);
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: err?.message || "Could not delete timeline event."
+      });
+    }
+  };
+
+  const handleDownloadDoc = (url: string, name: string) => {
+    // In a real implementation this would fetch the blob and trigger download
+    // For now we use the anchor download fallback
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleLinkCaseSubmit = async () => {
     if (!selectedCase || !linkTargetId) return;
     const targetId = linkTargetId;
@@ -1228,7 +1257,12 @@ export default function CaseManagement() {
                             <div className="pt-1 min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
                                 <p className="text-sm font-medium font-sans text-foreground">{event.title}</p>
-                                <span className="text-[10px] text-muted-foreground font-sans whitespace-nowrap">{event.date}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-muted-foreground font-sans whitespace-nowrap">{event.date}</span>
+                                  <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteEvent(event.id)}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
                               <p className="text-[11px] text-muted-foreground font-sans mt-0.5 leading-relaxed">{event.description}</p>
                             </div>
@@ -1281,9 +1315,14 @@ export default function CaseManagement() {
                           <div className="flex items-center gap-1 shrink-0">
                             <Badge variant="secondary" className="text-[9px] font-sans">{doc.type}</Badge>
                             {doc.url && (
-                              <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                                <Button variant="ghost" size="icon" className="h-7 w-7"><Eye className="h-3.5 w-3.5" /></Button>
-                              </a>
+                              <div className="flex gap-1">
+                                <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7"><Eye className="h-3.5 w-3.5" /></Button>
+                                </a>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownloadDoc(doc.url, doc.name)}>
+                                  <Download className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </div>
