@@ -107,6 +107,7 @@ export default function ClientCRM() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [detailTab, setDetailTab] = useState('overview');
   const [showAddClient, setShowAddClient] = useState(false);
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [showConflictCheck, setShowConflictCheck] = useState(false);
   const [showLogInteraction, setShowLogInteraction] = useState(false);
   const [conflictQuery, setConflictQuery] = useState('');
@@ -160,31 +161,6 @@ export default function ClientCRM() {
       } catch (err) {
         console.error("Failed to load secure CRM directory.", err);
         setClientList([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadClients();
-  }, []);
-  
-  const [editingClientId, setEditingClientId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadClients() {
-      try {
-        const [clientsRes, statsRes, casesRes] = await Promise.allSettled([
-          api.getClients(),
-          api.getClientStats(),
-          api.getCases()
-        ]);
-        if (clientsRes.status === 'fulfilled') {
-          const list = clientsRes.value.data || clientsRes.value;
-          setClientList(Array.isArray(list) ? list : []);
-        }
-        if (statsRes.status === 'fulfilled') setClientStats(statsRes.value);
-        if (casesRes.status === 'fulfilled') setAvailableCases(casesRes.value.data || casesRes.value || []);
-      } catch (err) {
-        console.error("Failed to fetch client data", err);
       } finally {
         setLoading(false);
       }
