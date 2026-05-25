@@ -859,7 +859,19 @@ export default function ClientCRM() {
                 })}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="pt-2 border-t border-border mt-2">
+              <label className="text-xs font-sans font-medium text-foreground mb-1 block">Link to Existing Case (Optional)</label>
+              <Select value={newClientData.linkedCaseId} onValueChange={val => setNewClientData({...newClientData, linkedCaseId: val})}>
+                <SelectTrigger className="h-9 text-xs font-sans"><SelectValue placeholder="Select a case..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-- Do not link --</SelectItem>
+                  {availableCases.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.caseNumber} - {c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
               <input type="checkbox" id="vip" checked={newClientData.vip} onChange={e => setNewClientData({...newClientData, vip: e.target.checked})} className="rounded border-border" />
               <label htmlFor="vip" className="text-xs font-sans">Mark as VIP client</label>
             </div>
