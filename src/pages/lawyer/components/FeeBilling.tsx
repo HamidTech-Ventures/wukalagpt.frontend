@@ -17,11 +17,14 @@ import {
   Receipt, Download, Eye, Send, Printer, FileText, Wallet,
   CreditCard, ArrowLeft, Calendar, Users, Search, Filter,
   BarChart3, RefreshCw, BanknoteIcon, Briefcase, X, ChevronRight,
-  Loader2,
+  Loader2, Share2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/services/api';
+import { InvoiceTemplate } from './InvoiceTemplate';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ── Types ──────────────────────────────────────────────────────
 interface InvoiceItem {
@@ -122,21 +125,27 @@ const EXPENSE_CATEGORIES = {
   BAR_DUES: "Bar Dues & Licenses",
   MARKETING: "Marketing & Ads",
   TRAVEL: "Court Travel & Lodging",
-  UTILITIES: "Utilities & Communication"
+  UTILITIES: "Utilities & Communication",
+  OTHER: "Other"
 };
 
 type MainTab = 'invoices' | 'payments' | 'retainers' | 'templates' | 'expenses';
 type View = 'list' | 'invoice-detail' | 'retainer-detail' | 'template-detail';
 
 export default function FeeBilling() {
+  const navigate = useNavigate();
+  const { type, id } = useParams();
+  const { user } = useAuth();
   const [mainTab, setMainTab] = useState<MainTab>('invoices');
   const [invoiceFilter, setInvoiceFilter] = useState('all');
+  const [expenseFilter, setExpenseFilter] = useState('all');
   const [view, setView] = useState<View>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedRetainer, setSelectedRetainer] = useState<Retainer | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<BillingTemplate | null>(null);
   const [showNewInvoice, setShowNewInvoice] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -146,81 +155,275 @@ export default function FeeBilling() {
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewExpense, setShowNewExpense] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showRetainerDialog, setShowRetainerDialog] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    method: 'Bank Transfer',
+    reference: '',
+    date: new Date().toISOString().split('T')[0]
+  });
+
+  const [retainerForm, setRetainerForm] = useState({
+    clientId: '',
+    totalAmount: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+    billingCycle: 'Monthly'
+  });
+
+  const [templateForm, setTemplateForm] = useState({
+    name: '',
+    category: 'General',
+    description: '',
+    items: [{ description: '', rate: '', hours: 1, amount: 0 }]
+  });
+
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientCases, setClientCases] = useState<any[]>([]);
+
+  const [expenseForm, setExpenseForm] = useState({
+    category: '0',
+    description: '',
+    amount: '',
+    expenseDate: new Date().toISOString().split('T')[0]
+  });
+
+  const [invoiceForm, setInvoiceForm] = useState({
+    clientId: '',
+    caseRef: '',
+    dateIssued: new Date().toISOString().split('T')[0],
+    dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+    notes: '',
+    items: [{ description: '', hours: '', rate: '', amount: 0 }]
+  });
+
+  const [bankDetails, setBankDetails] = useState({
+    bankName: localStorage.getItem('invoice_bankName') || '',
+    accountTitle: localStorage.getItem('invoice_accountTitle') || '',
+    accountNumber: localStorage.getItem('invoice_accountNumber') || '',
+    iban: localStorage.getItem('invoice_iban') || '',
+    branch: localStorage.getItem('invoice_branch') || ''
+  });
+
+  const handleSaveExpense = async () => {
+    if (!expenseForm.category || !expenseForm.amount || !expenseForm.expenseDate) {
+      alert('Please fill out Category, Amount, and Expense Date.');
+      return;
+    }
+    try {
+      await api.addExpense({
+        category: parseInt(expenseForm.category),
+        description: expenseForm.description,
+        amount: parseFloat(expenseForm.amount),
+        expenseDate: new Date(expenseForm.expenseDate).toISOString()
+      });
+      setShowNewExpense(false);
+      fetchExpenses(); // Refresh list
+    } catch (err) {
+      console.error('Failed to save expense', err);
+      alert('Failed to save expense');
+    }
+  };
+
+  const handleCreateInvoice = async () => {
+    if (!invoiceForm.clientId || !invoiceForm.caseRef || !invoiceForm.dateIssued || !invoiceForm.dueDate) {
+      alert('Client, Case Reference, Issue Date, and Due Date are required.');
+      return;
+    }
+    if (invoiceForm.items.length === 0 || invoiceForm.items.some(i => !i.description)) {
+      alert('At least one line item with a description is required.');
+      return;
+    }
+
+    try {
+      const selectedCase = clientCases.find(c => c.caseNumber === invoiceForm.caseRef);
+      
+      const bankDetailsJson = `\n\n___BANK_DETAILS___${JSON.stringify(bankDetails)}___`;
+      
+      localStorage.setItem('invoice_bankName', bankDetails.bankName);
+      localStorage.setItem('invoice_accountTitle', bankDetails.accountTitle);
+      localStorage.setItem('invoice_accountNumber', bankDetails.accountNumber);
+      localStorage.setItem('invoice_iban', bankDetails.iban);
+      localStorage.setItem('invoice_branch', bankDetails.branch);
+
+      await api.createInvoice({
+        clientId: invoiceForm.clientId,
+        caseId: selectedCase?.id,
+        caseRef: invoiceForm.caseRef,
+        dateIssued: new Date(invoiceForm.dateIssued).toISOString(),
+        dueDate: new Date(invoiceForm.dueDate).toISOString(),
+        notes: invoiceForm.notes + bankDetailsJson,
+        items: invoiceForm.items.map(item => ({
+          description: item.description,
+          hours: parseFloat(item.hours as string) || 0,
+          rate: parseFloat(item.rate as string) || 0,
+          amount: (parseFloat(item.hours as string) || 0) * (parseFloat(item.rate as string) || 0)
+        }))
+      });
+      setShowNewInvoice(false);
+      fetchInvoices(); // Refresh list
+      fetchInitialData(); // Refresh summary
+    } catch (err) {
+      console.error('Failed to create invoice', err);
+      alert('Failed to create invoice. Please check the inputs.');
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedInvoice || !paymentForm.amount || !paymentForm.method) return;
+    try {
+      await api.recordPayment(selectedInvoice.id, {
+        amount: parseFloat(paymentForm.amount),
+        method: paymentForm.method,
+        reference: paymentForm.reference,
+        date: new Date(paymentForm.date).toISOString()
+      });
+      setShowPaymentDialog(false);
+      fetchInvoices();
+      fetchPayments();
+      fetchInitialData();
+      // update local view
+      setSelectedInvoice({...selectedInvoice, paidAmount: (selectedInvoice.paidAmount || 0) + parseFloat(paymentForm.amount), status: 'Partially Paid'});
+    } catch (err) { console.error('Failed to record payment', err); alert('Failed to record payment'); }
+  };
+
+  const handleCreateRetainer = async () => {
+    if (!retainerForm.clientId || !retainerForm.totalAmount) return;
+    try {
+      await api.createRetainer({
+        clientId: retainerForm.clientId,
+        totalAmount: parseFloat(retainerForm.totalAmount),
+        startDate: new Date(retainerForm.startDate).toISOString(),
+        endDate: new Date(retainerForm.endDate).toISOString(),
+        billingCycle: retainerForm.billingCycle
+      });
+      setShowRetainerDialog(false);
+      fetchRetainers();
+      fetchInitialData();
+    } catch (err) { console.error('Failed to create retainer', err); alert('Failed to create retainer'); }
+  };
+
+  const handleCreateTemplate = async () => {
+    if (!templateForm.name || !templateForm.category) return;
+    try {
+      await api.createTemplate({
+        name: templateForm.name,
+        category: templateForm.category,
+        description: templateForm.description,
+        items: templateForm.items.map(i => ({
+          description: i.description,
+          rate: parseFloat(i.rate as string) || 0,
+          hours: 1,
+          amount: parseFloat(i.rate as string) || 0
+        }))
+      });
+      setShowTemplateDialog(false);
+      fetchTemplates();
+    } catch (err) { console.error('Failed to create template', err); alert('Failed to create template'); }
+  };
 
   useEffect(() => {
     fetchInitialData();
   }, []);
 
+  useEffect(() => {
+    if (type && id) {
+      if (type === 'invoice') {
+        const inv = invoices.find(i => i.id === id);
+        if (inv) {
+          setSelectedInvoice(inv);
+          setView('invoice-detail');
+        }
+      } else if (type === 'retainer') {
+        const ret = retainers.find(r => r.id === id);
+        if (ret) {
+          setSelectedRetainer(ret);
+          setView('retainer-detail');
+        }
+      } else if (type === 'template') {
+        const tpl = templates.find(t => t.id === id);
+        if (tpl) {
+          setSelectedTemplate(tpl);
+          setView('template-detail');
+        }
+      }
+    } else {
+      setSelectedInvoice(null);
+      setSelectedRetainer(null);
+      setSelectedTemplate(null);
+      setView('list');
+    }
+  }, [type, id, invoices, retainers, templates]);
+
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const summaryData = await api.getBillingSummary();
-      setSummary(summaryData);
-      await fetchInvoices();
-      await fetchPayments();
-      await fetchRetainers();
-      await fetchTemplates();
-    } catch (err) {
-      console.error('Failed to fetch billing data, using dummy fallback:', err);
+      try {
+        const summaryData = await api.getBillingSummary();
+        setSummary(summaryData);
+      } catch (err) {
+        console.error('Failed to fetch billing summary:', err);
+      }
       
-      // Dummy Summary
-      setSummary({
-        totalRevenue: 4850000,
-        outstandingAmount: 870000,
-        overdueAmount: 320000,
-        activeRetainersCount: 12,
-        totalRevenueFormatted: '₨ 4.85M',
-        outstandingAmountFormatted: '₨ 870K',
-        overdueAmountFormatted: '₨ 320K'
-      });
-
-      // Dummy Invoices
-      setInvoices([
-        { 
-          id: '1', invoiceNumber: 'INV-2024-001', clientName: 'Khan Industries Pvt Ltd', 
-          caseRef: 'CIV-99/2023', amount: 180000, amountFormatted: '₨ 180,000', 
-          dateIssued: 'Oct 10, 2024', dueDate: 'Oct 25, 2024', status: 'Paid',
-          items: [{ description: 'Legal Consultation', hours: 5, rate: 20000, amount: 100000 }]
-        },
-        { 
-          id: '2', invoiceNumber: 'INV-2024-002', clientName: 'Ahmed Real Estate', 
-          caseRef: 'PROP-44/2024', amount: 250000, amountFormatted: '₨ 250,000', 
-          dateIssued: 'Oct 15, 2024', dueDate: 'Oct 30, 2024', status: 'Pending',
-          items: [{ description: 'Property Verification', hours: 10, rate: 25000, amount: 250000 }]
-        },
-        { 
-          id: '3', invoiceNumber: 'INV-2024-003', clientName: 'Fatima Bibi', 
-          caseRef: 'FML-12/2024', amount: 45000, amountFormatted: '₨ 45,000', 
-          dateIssued: 'Sep 20, 2024', dueDate: 'Oct 05, 2024', status: 'Overdue',
-          items: [{ description: 'Court Appearance', hours: 2, rate: 22500, amount: 45000 }]
-        }
+      await Promise.all([
+        fetchInvoices(),
+        fetchPayments(),
+        fetchRetainers(),
+        fetchTemplates(),
+        fetchExpenses(),
+        fetchClients()
       ]);
-
-      // Dummy Payments
-      setPayments([
-        { id: 'p1', invoiceNumber: 'INV-2024-001', clientName: 'Khan Industries', amount: 180000, date: 'Oct 12, 2024', method: 'Bank Transfer', reference: 'TRX-99812', status: 'Completed' }
-      ]);
-
-      // Dummy Retainers
-      setRetainers([
-        { id: 'r1', retainerNumber: 'RET-001', clientName: 'Khan Industries', totalAmount: 1000000, usedAmount: 650000, startDate: 'Jan 01, 2024', endDate: 'Dec 31, 2024', status: 'Active', billingCycle: 'Monthly' }
-      ]);
-
-      // Dummy Templates
-      setTemplates([
-        { id: 't1', name: 'Standard Litigation', category: 'Civil', description: 'Base fee for civil court proceedings', items: [], usageCount: 45, lastUsed: '2 days ago' }
-      ]);
-
-      // Dummy Expenses
-      setExpenses([
-        { id: 'e1', date: 'Oct 20, 2024', category: EXPENSE_CATEGORIES.OFFICE_RENT, description: 'Chamber Rent - Lahore High Court', amount: 45000, status: 'Paid', icon: 'building' },
-        { id: 'e2', date: 'Oct 21, 2024', category: EXPENSE_CATEGORIES.SOFTWARE, description: 'Wukala-GPT Subscription', amount: 8500, status: 'Paid', icon: 'cpu' },
-        { id: 'e3', date: 'Oct 22, 2024', category: EXPENSE_CATEGORIES.SALARIES, description: 'Junior Associate Stipend', amount: 25000, status: 'Processing', icon: 'users' },
-        { id: 'e4', date: 'Oct 22, 2024', category: EXPENSE_CATEGORIES.TRAVEL, description: 'Outstation Hearing - Islamabad', amount: 12000, status: 'Paid', icon: 'map-pin' }
-      ]);
-
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const data = await api.getClients();
+      const clientsArray = Array.isArray(data) ? data : (data?.data || data?.Data || data?.items || data?.Items || []);
+      setClients(clientsArray);
+    } catch (err) { console.error('Failed to fetch clients', err); }
+  };
+
+  const handleClientChange = async (clientId: string) => {
+    setInvoiceForm({ ...invoiceForm, clientId, caseRef: '' });
+    try {
+      const cases = await api.getCases({ clientId });
+      const casesArray = Array.isArray(cases) ? cases : (cases?.data || cases?.Data || cases?.items || cases?.Items || []);
+      setClientCases(casesArray);
+    } catch (err) { console.error('Failed to fetch cases', err); }
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setInvoiceForm({
+        ...invoiceForm,
+        notes: template.description || invoiceForm.notes,
+        items: template.items && template.items.length > 0 
+          ? template.items.map(i => ({ description: i.description, hours: '', rate: i.rate, amount: 0 }))
+          : [{ description: template.name, hours: '', rate: '', amount: 0 }]
+      });
+    }
+  };
+
+  const fetchExpenses = async () => {
+    try {
+      const data = await api.getExpenses();
+      setExpenses(data.map((e: any) => ({
+        id: e.id,
+        date: new Date(e.expenseDate).toLocaleDateString(),
+        category: Object.values(EXPENSE_CATEGORIES)[e.category] || 'General',
+        description: e.description,
+        amount: e.amount,
+        status: 'Paid'
+      })));
+    } catch (err) {
+      console.error('Failed to fetch expenses:', err);
     }
   };
 
@@ -230,6 +433,13 @@ export default function FeeBilling() {
       setInvoices(data);
     } catch (err) { console.error(err); }
   };
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchInvoices();
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, invoiceFilter]);
 
   const fetchPayments = async () => {
     try {
@@ -252,20 +462,64 @@ export default function FeeBilling() {
     } catch (err) { console.error(err); }
   };
 
-  const openInvoice = (inv: Invoice) => { setSelectedInvoice(inv); setView('invoice-detail'); };
-  const openRetainer = (r: Retainer) => { setSelectedRetainer(r); setView('retainer-detail'); };
-  const openTemplate = (t: BillingTemplate) => { setSelectedTemplate(t); setView('template-detail'); };
-  const goBack = () => { setView('list'); setSelectedInvoice(null); setSelectedRetainer(null); setSelectedTemplate(null); };
+  const handleDownloadInvoicePDF = async () => {
+    const el = document.getElementById('invoice-pdf-container');
+    if (!el) return;
+    setIsGeneratingPdf(true);
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const opt = {
+        margin:       0,
+        filename:     `${selectedInvoice?.invoiceNumber || 'Invoice'}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(el).save();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const openInvoice = (inv: Invoice) => { navigate('/lawyer-dashboard/billing/invoice/' + inv.id); };
+  const openRetainer = (r: Retainer) => { navigate('/lawyer-dashboard/billing/retainer/' + r.id); };
+  const openTemplate = (t: BillingTemplate) => { navigate('/lawyer-dashboard/billing/template/' + t.id); };
+  const goBack = () => { navigate('/lawyer-dashboard/billing'); };
 
   const formatPKR = (n: number) => `₨ ${n.toLocaleString()}`;
 
   // ── Detail Views ──
-  if (view === 'invoice-detail' && selectedInvoice) {
+  const renderInvoiceDetail = () => {
+    if (!selectedInvoice) return null;
     const inv = selectedInvoice;
     const Icon = statusIcon[inv.status] || Receipt;
-    const subtotal = inv.items.reduce((s, it) => s + it.amount, 0);
+    const items = inv.items || [];
+    const subtotal = items.reduce((s, it) => s + (it.amount || 0), 0);
+
+    let savedBankDetails = null;
+    let cleanNotes = inv.notes || '';
+    if (inv.notes?.includes('___BANK_DETAILS___')) {
+      try {
+        const match = inv.notes.match(/___BANK_DETAILS___(.*?)___/);
+        if (match && match[1]) {
+          savedBankDetails = JSON.parse(match[1]);
+          cleanNotes = inv.notes.replace(/___BANK_DETAILS___(.*?)___/, '').trim();
+        }
+      } catch(e) {}
+    }
+
     return (
-      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5 relative">
+        
+        {/* Hidden Invoice Template for PDF Generation */}
+        <div className="hidden">
+          <div id="invoice-pdf-container">
+            <InvoiceTemplate invoice={{...inv, notes: cleanNotes}} bankDetails={savedBankDetails} lawyerDetails={user} />
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={goBack} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
           <div className="flex-1">
@@ -304,7 +558,7 @@ export default function FeeBilling() {
               <h3 className="text-sm font-semibold font-sans text-foreground">Line Items</h3>
             </div>
             <div className="divide-y divide-border/50">
-              {inv.items.map((item, idx) => (
+              {items.map((item, idx) => (
                 <div key={idx} className="p-4 flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium font-sans text-foreground">{item.description}</p>
@@ -365,29 +619,45 @@ export default function FeeBilling() {
           </Card>
         )}
 
-        {inv.notes && (
+        {cleanNotes && (
           <Card className="border-border/50">
             <CardContent className="p-4">
               <p className="text-[10px] text-muted-foreground font-sans mb-1">Notes</p>
-              <p className="text-xs font-sans text-foreground">{inv.notes}</p>
+              <p className="text-xs font-sans text-foreground whitespace-pre-wrap">{cleanNotes}</p>
             </CardContent>
           </Card>
         )}
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5 h-8"><Send className="h-3 w-3" />Send to Client</Button>
-          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><Printer className="h-3 w-3" />Print</Button>
-          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><Download className="h-3 w-3" />Download PDF</Button>
+          <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5 h-8" onClick={() => {
+            if (navigator.share) {
+              navigator.share({
+                title: `Invoice ${inv.invoiceNumber}`,
+                text: `Invoice ${inv.invoiceNumber} for ${inv.clientName}`,
+                url: window.location.href,
+              }).catch(console.error);
+            } else {
+              alert('Sharing is not supported on this browser.');
+            }
+          }}><Share2 className="h-3 w-3" />Share</Button>
+          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8" disabled={isGeneratingPdf} onClick={handleDownloadInvoicePDF}><Printer className="h-3 w-3" />Print</Button>
+          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8" disabled={isGeneratingPdf} onClick={handleDownloadInvoicePDF}>
+            {isGeneratingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
+          </Button>
           {inv.status !== 'Paid' && (
-            <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8 text-success border-success/30"><CreditCard className="h-3 w-3" />Record Payment</Button>
+            <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8 text-success border-success/30" onClick={() => setShowPaymentDialog(true)}>
+              <CreditCard className="h-3 w-3" />Record Payment
+            </Button>
           )}
         </div>
       </motion.div>
     );
   }
 
-  if (view === 'retainer-detail' && selectedRetainer) {
+  const renderRetainerDetail = () => {
+    if (!selectedRetainer) return null;
     const r = selectedRetainer;
     const usagePercent = Math.round((r.usedAmount / r.totalAmount) * 100);
     const remaining = r.totalAmount - r.usedAmount;
@@ -468,7 +738,7 @@ export default function FeeBilling() {
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5 h-8"><RefreshCw className="h-3 w-3" />Renew Retainer</Button>
+          <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5 h-8" onClick={() => setShowRetainerDialog(true)}><RefreshCw className="h-3 w-3" />Renew Retainer</Button>
           <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><BarChart3 className="h-3 w-3" />Usage Report</Button>
           <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><Send className="h-3 w-3" />Send Statement</Button>
         </div>
@@ -476,7 +746,8 @@ export default function FeeBilling() {
     );
   }
 
-  if (view === 'template-detail' && selectedTemplate) {
+  const renderTemplateDetail = () => {
+    if (!selectedTemplate) return null;
     const t = selectedTemplate;
     return (
       <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
@@ -525,7 +796,7 @@ export default function FeeBilling() {
         <Card className="border-border/50">
           <CardContent className="p-4">
             <h3 className="text-sm font-semibold font-sans text-foreground mb-3">Invoice Preview</h3>
-            <div className="bg-secondary/30 rounded-lg p-4 border border-border/30">
+            <div id="template-preview-container" className="bg-secondary/30 rounded-lg p-4 border border-border/30">
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <p className="text-xs font-bold font-sans text-foreground">LAW CHAMBERS</p>
@@ -552,9 +823,51 @@ export default function FeeBilling() {
         </Card>
 
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5 h-8"><Plus className="h-3 w-3" />Use Template</Button>
-          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><FileText className="h-3 w-3" />Edit Template</Button>
-          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><Eye className="h-3 w-3" />Preview PDF</Button>
+          <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5 h-8" onClick={() => {
+            setInvoiceForm({
+              ...invoiceForm,
+              notes: t.description || invoiceForm.notes,
+              items: t.items && t.items.length > 0 
+                ? t.items.map(i => ({ description: i.description, hours: '', rate: i.rate, amount: 0 }))
+                : [{ description: t.name, hours: '', rate: '', amount: 0 }]
+            });
+            setView('list');
+            setMainTab('invoices');
+            setShowNewInvoice(true);
+          }}>
+            <Plus className="h-3 w-3" />Use Template
+          </Button>
+          
+          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8" onClick={() => {
+            setTemplateForm({
+              name: t.name + ' (Copy)',
+              category: t.category,
+              description: t.description,
+              items: t.items.map(i => ({ description: i.description, hours: 1, rate: i.rate.toString(), amount: i.rate }))
+            });
+            setView('list');
+            setMainTab('templates');
+            setShowTemplateDialog(true);
+          }}>
+            <FileText className="h-3 w-3" />Duplicate / Edit
+          </Button>
+          
+          <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8" onClick={async () => {
+            const element = document.getElementById('template-preview-container');
+            if (element) {
+              const opt = {
+                margin: 0,
+                filename: `Template_${t.name}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+              };
+              const html2pdf = (await import('html2pdf.js')).default;
+              html2pdf().from(element).set(opt).save();
+            }
+          }}>
+            <Eye className="h-3 w-3" />Preview PDF
+          </Button>
         </div>
       </motion.div>
     );
@@ -562,12 +875,16 @@ export default function FeeBilling() {
 
   // ── Main List View ──
   return (
-    <div className="space-y-5">
-      {/* Header */}
+    <div className="flex h-full flex-col">
+      {view === 'invoice-detail' && selectedInvoice ? renderInvoiceDetail() :
+       view === 'retainer-detail' && selectedRetainer ? renderRetainerDetail() :
+       view === 'template-detail' && selectedTemplate ? renderTemplateDetail() : (
+      <div className="space-y-5">
+        {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold font-sans text-foreground">Fee & Billing</h2>
-          <p className="text-xs text-muted-foreground font-sans mt-0.5">Invoices, payments, retainers & billing templates</p>
+          <h2 className="text-lg font-semibold font-sans text-foreground">Finance</h2>
+          <p className="text-xs text-muted-foreground font-sans mt-0.5">Invoices, payments, retainers, billing templates & expenses</p>
         </div>
         <Button size="sm" onClick={() => setShowNewInvoice(true)} className="bg-gradient-primary font-sans text-xs gap-1.5 h-9">
           <Plus className="h-3.5 w-3.5" /> Create Invoice
@@ -730,6 +1047,9 @@ export default function FeeBilling() {
         {/* ─── RETAINERS TAB ─── */}
         {mainTab === 'retainers' && (
           <motion.div key="retainers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8" onClick={() => setShowRetainerDialog(true)}><Plus className="h-3 w-3" />New Retainer</Button>
+            </div>
             {retainers.map(r => {
               const pct = Math.round((r.usedAmount / r.totalAmount) * 100);
               return (
@@ -764,7 +1084,7 @@ export default function FeeBilling() {
         {mainTab === 'templates' && (
           <motion.div key="templates" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8"><Plus className="h-3 w-3" />New Template</Button>
+              <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5 h-8" onClick={() => setShowTemplateDialog(true)}><Plus className="h-3 w-3" />New Template</Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {templates.map(t => (
@@ -801,18 +1121,26 @@ export default function FeeBilling() {
                 >
                   <Plus className="h-3 w-3" /> Record Expense
                 </Button>
-                <Button size="sm" variant="outline" className="text-[10px] h-7 gap-1.5 font-sans">
-                  <Filter className="h-3 w-3" /> Category
-                </Button>
+                <Select value={expenseFilter} onValueChange={setExpenseFilter}>
+                  <SelectTrigger className="h-7 text-[10px] font-sans w-[120px]">
+                    <div className="flex items-center gap-1.5"><Filter className="h-3 w-3" /> <SelectValue placeholder="Category" /></div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs">All Categories</SelectItem>
+                    {Object.values(EXPENSE_CATEGORIES).map(cat => (
+                      <SelectItem key={cat} value={cat} className="text-xs">{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-muted-foreground font-sans uppercase tracking-wider">Total Monthly Pivot</p>
-                <p className="text-sm font-bold font-sans text-destructive">₨ {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
+                <p className="text-sm font-bold font-sans text-destructive">₨ {expenses.filter(e => expenseFilter === 'all' || e.category === expenseFilter).reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              {expenses.map(exp => (
+              {expenses.filter(e => expenseFilter === 'all' || e.category === expenseFilter).map(exp => (
                 <Card key={exp.id} className="border-border/50 shadow-sm hover:border-destructive/30 transition-colors">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -843,6 +1171,8 @@ export default function FeeBilling() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
+      )}
 
       {/* ─── Record Expense Dialog ─── */}
       <Dialog open={showNewExpense} onOpenChange={setShowNewExpense}>
@@ -856,13 +1186,13 @@ export default function FeeBilling() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-sans">Expense Category</Label>
-              <Select>
+              <Select value={expenseForm.category} onValueChange={(val) => setExpenseForm({...expenseForm, category: val})}>
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(EXPENSE_CATEGORIES).map(([key, value]) => (
-                    <SelectItem key={key} value={key} className="text-xs">{value}</SelectItem>
+                  {Object.entries(EXPENSE_CATEGORIES).map(([key, value], idx) => (
+                    <SelectItem key={key} value={idx.toString()} className="text-xs">{value}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -870,17 +1200,20 @@ export default function FeeBilling() {
             
             <div className="space-y-1.5">
               <Label className="text-xs font-sans">Description</Label>
-              <Input placeholder="e.g. Monthly Internet Bill or Junior Associate stipend" className="h-9 text-xs" />
+              <Input placeholder="e.g. Monthly Internet Bill or Junior Associate stipend" className="h-9 text-xs" 
+                value={expenseForm.description} onChange={(e) => setExpenseForm({...expenseForm, description: e.target.value})} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-sans">Amount (₨)</Label>
-                <Input type="number" placeholder="0.00" className="h-9 text-xs" />
+                <Input type="number" placeholder="0.00" className="h-9 text-xs" 
+                  value={expenseForm.amount} onChange={(e) => setExpenseForm({...expenseForm, amount: e.target.value})} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-sans">Expense Date</Label>
-                <Input type="date" className="h-9 text-xs" />
+                <Input type="date" className="h-9 text-xs" 
+                  value={expenseForm.expenseDate} onChange={(e) => setExpenseForm({...expenseForm, expenseDate: e.target.value})} />
               </div>
             </div>
 
@@ -899,7 +1232,7 @@ export default function FeeBilling() {
             <DialogClose asChild>
               <Button variant="outline" size="sm" className="text-xs font-sans h-9">Cancel</Button>
             </DialogClose>
-            <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-sans h-9 px-5">
+            <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-sans h-9 px-5" onClick={handleSaveExpense}>
               Save Expense
             </Button>
           </DialogFooter>
@@ -917,34 +1250,42 @@ export default function FeeBilling() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-sans">Client</Label>
-                <Select><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select client" /></SelectTrigger>
+                <Select value={invoiceForm.clientId} onValueChange={handleClientChange}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select client" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="khan">Khan Industries Ltd.</SelectItem>
-                    <SelectItem value="noor">Noor Enterprises</SelectItem>
-                    <SelectItem value="fatima">Fatima Enterprises</SelectItem>
-                    <SelectItem value="islamabad">Islamabad Realty Corp.</SelectItem>
-                    <SelectItem value="pwu">Pakistan Workers Union</SelectItem>
+                    {clients.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.fullName}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-sans">Case Reference</Label>
-                <Input placeholder="CASE-2024-XXX" className="h-9 text-xs" />
+                <Select value={invoiceForm.caseRef} onValueChange={(val) => setInvoiceForm({...invoiceForm, caseRef: val})} disabled={!invoiceForm.clientId}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select case" /></SelectTrigger>
+                  <SelectContent>
+                    {clientCases.map(c => (
+                      <SelectItem key={c.id} value={c.caseNumber}>{c.title} ({c.caseNumber})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-sans">Invoice Date</Label>
-                <Input type="date" className="h-9 text-xs" />
+                <Input type="date" className="h-9 text-xs" 
+                  value={invoiceForm.dateIssued} onChange={(e) => setInvoiceForm({...invoiceForm, dateIssued: e.target.value})} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-sans">Due Date</Label>
-                <Input type="date" className="h-9 text-xs" />
+                <Input type="date" className="h-9 text-xs" 
+                  value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm({...invoiceForm, dueDate: e.target.value})} />
               </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-sans">Billing Template</Label>
-              <Select><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Choose a template (optional)" /></SelectTrigger>
+              <Select onValueChange={handleTemplateChange}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Choose a template (optional)" /></SelectTrigger>
                 <SelectContent>
                   {templates.map(t => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -956,42 +1297,249 @@ export default function FeeBilling() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-sans">Line Items</Label>
-                <Button variant="ghost" size="sm" className="text-[10px] h-6 gap-1 text-primary"><Plus className="h-3 w-3" />Add Item</Button>
+                <Button variant="ghost" size="sm" className="text-[10px] h-6 gap-1 text-primary" 
+                  onClick={() => setInvoiceForm({...invoiceForm, items: [...invoiceForm.items, { description: '', hours: '', rate: '', amount: 0 }]})}>
+                  <Plus className="h-3 w-3" />Add Item
+                </Button>
               </div>
-              {[1].map(idx => (
+              {invoiceForm.items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-5 space-y-1">
-                    {idx === 1 && <Label className="text-[10px] font-sans text-muted-foreground">Description</Label>}
-                    <Input placeholder="Service description" className="h-8 text-xs" />
+                    {idx === 0 && <Label className="text-[10px] font-sans text-muted-foreground">Description</Label>}
+                    <Input placeholder="Service description" className="h-8 text-xs" 
+                      value={item.description} onChange={(e) => {
+                        const newItems = [...invoiceForm.items];
+                        newItems[idx].description = e.target.value;
+                        setInvoiceForm({...invoiceForm, items: newItems});
+                      }} />
                   </div>
                   <div className="col-span-2 space-y-1">
-                    {idx === 1 && <Label className="text-[10px] font-sans text-muted-foreground">Hours</Label>}
-                    <Input type="number" placeholder="Hrs" className="h-8 text-xs" />
+                    {idx === 0 && <Label className="text-[10px] font-sans text-muted-foreground">Hours</Label>}
+                    <Input type="number" placeholder="Hrs" className="h-8 text-xs" 
+                      value={item.hours} onChange={(e) => {
+                        const newItems = [...invoiceForm.items];
+                        newItems[idx].hours = e.target.value;
+                        setInvoiceForm({...invoiceForm, items: newItems});
+                      }} />
                   </div>
                   <div className="col-span-2 space-y-1">
-                    {idx === 1 && <Label className="text-[10px] font-sans text-muted-foreground">Rate (₨)</Label>}
-                    <Input type="number" placeholder="Rate" className="h-8 text-xs" />
+                    {idx === 0 && <Label className="text-[10px] font-sans text-muted-foreground">Rate (₨)</Label>}
+                    <Input type="number" placeholder="Rate" className="h-8 text-xs" 
+                      value={item.rate} onChange={(e) => {
+                        const newItems = [...invoiceForm.items];
+                        newItems[idx].rate = e.target.value;
+                        setInvoiceForm({...invoiceForm, items: newItems});
+                      }} />
                   </div>
                   <div className="col-span-2 space-y-1">
-                    {idx === 1 && <Label className="text-[10px] font-sans text-muted-foreground">Amount</Label>}
-                    <Input disabled placeholder="₨ 0" className="h-8 text-xs bg-secondary/50" />
+                    {idx === 0 && <Label className="text-[10px] font-sans text-muted-foreground">Amount</Label>}
+                    <Input disabled placeholder="₨ 0" className="h-8 text-xs bg-secondary/50" 
+                      value={`₨ ${((parseFloat(item.hours as string) || 0) * (parseFloat(item.rate as string) || 0)).toLocaleString()}`} />
                   </div>
                   <div className="col-span-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        const newItems = invoiceForm.items.filter((_, i) => i !== idx);
+                        setInvoiceForm({...invoiceForm, items: newItems});
+                      }}><X className="h-3 w-3" /></Button>
                   </div>
                 </div>
               ))}
             </div>
 
+            <div className="space-y-2 border-t pt-3 mt-1">
+              <Label className="text-xs font-sans text-foreground">Payment Details (Bank Info)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Bank Name" className="h-8 text-xs" value={bankDetails.bankName} onChange={(e) => setBankDetails({...bankDetails, bankName: e.target.value})} />
+                <Input placeholder="Account Title" className="h-8 text-xs" value={bankDetails.accountTitle} onChange={(e) => setBankDetails({...bankDetails, accountTitle: e.target.value})} />
+                <Input placeholder="Account Number" className="h-8 text-xs" value={bankDetails.accountNumber} onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})} />
+                <Input placeholder="IBAN" className="h-8 text-xs" value={bankDetails.iban} onChange={(e) => setBankDetails({...bankDetails, iban: e.target.value})} />
+                <Input placeholder="Branch" className="h-8 text-xs col-span-2" value={bankDetails.branch} onChange={(e) => setBankDetails({...bankDetails, branch: e.target.value})} />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs font-sans">Notes</Label>
-              <Textarea placeholder="Additional notes or payment terms..." className="text-xs min-h-[60px]" />
+              <Textarea placeholder="Additional notes or payment terms..." className="text-xs min-h-[60px]" 
+                value={invoiceForm.notes} onChange={(e) => setInvoiceForm({...invoiceForm, notes: e.target.value})} />
             </div>
           </div>
           <DialogFooter className="gap-2">
             <DialogClose asChild><Button variant="outline" size="sm" className="text-xs font-sans">Cancel</Button></DialogClose>
             <Button size="sm" variant="outline" className="text-xs font-sans gap-1.5"><Eye className="h-3 w-3" />Preview</Button>
-            <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5"><Send className="h-3 w-3" />Create & Send</Button>
+            <Button size="sm" className="bg-gradient-primary text-xs font-sans gap-1.5" onClick={handleCreateInvoice}><Send className="h-3 w-3" />Create & Send</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Record Payment Dialog ─── */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-sans flex items-center gap-2"><CreditCard className="h-5 w-5 text-success" /> Record Payment</DialogTitle>
+            <DialogDescription className="text-xs font-sans">Record a payment received for invoice {selectedInvoice?.invoiceNumber}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-sans">Amount (₨)</Label>
+              <Input type="number" placeholder="0.00" className="h-9 text-xs" 
+                value={paymentForm.amount} onChange={(e) => setPaymentForm({...paymentForm, amount: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-sans">Payment Date</Label>
+                <Input type="date" className="h-9 text-xs" 
+                  value={paymentForm.date} onChange={(e) => setPaymentForm({...paymentForm, date: e.target.value})} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-sans">Payment Method</Label>
+                <Select value={paymentForm.method} onValueChange={(val) => setPaymentForm({...paymentForm, method: val})}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Method" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Retainer">Apply Retainer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-sans">Reference (Optional)</Label>
+              <Input placeholder="Check #, Transaction ID..." className="h-9 text-xs" 
+                value={paymentForm.reference} onChange={(e) => setPaymentForm({...paymentForm, reference: e.target.value})} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <DialogClose asChild><Button variant="outline" size="sm" className="text-xs font-sans">Cancel</Button></DialogClose>
+            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs font-sans" onClick={handleRecordPayment}>Record Payment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── New Retainer Dialog ─── */}
+      <Dialog open={showRetainerDialog} onOpenChange={setShowRetainerDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-sans">New Retainer</DialogTitle>
+            <DialogDescription className="text-xs font-sans">Create a new retainer agreement for a client</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-sans">Client</Label>
+              <Select value={retainerForm.clientId} onValueChange={(val) => setRetainerForm({...retainerForm, clientId: val})}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select client" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.fullName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-sans">Total Amount (₨)</Label>
+              <Input type="number" placeholder="0.00" className="h-9 text-xs" 
+                value={retainerForm.totalAmount} onChange={(e) => setRetainerForm({...retainerForm, totalAmount: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-sans">Start Date</Label>
+                <Input type="date" className="h-9 text-xs" 
+                  value={retainerForm.startDate} onChange={(e) => setRetainerForm({...retainerForm, startDate: e.target.value})} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-sans">End Date</Label>
+                <Input type="date" className="h-9 text-xs" 
+                  value={retainerForm.endDate} onChange={(e) => setRetainerForm({...retainerForm, endDate: e.target.value})} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-sans">Billing Cycle</Label>
+              <Select value={retainerForm.billingCycle} onValueChange={(val) => setRetainerForm({...retainerForm, billingCycle: val})}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Billing Cycle" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Monthly">Monthly</SelectItem>
+                  <SelectItem value="Quarterly">Quarterly</SelectItem>
+                  <SelectItem value="Annual">Annual</SelectItem>
+                  <SelectItem value="Lump Sum">Lump Sum</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <DialogClose asChild><Button variant="outline" size="sm" className="text-xs font-sans">Cancel</Button></DialogClose>
+            <Button size="sm" className="bg-gradient-primary text-xs font-sans" onClick={handleCreateRetainer}>Create Retainer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── New Template Dialog ─── */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-sans">New Billing Template</DialogTitle>
+            <DialogDescription className="text-xs font-sans">Create a reusable template for standardized billing</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-sans">Template Name</Label>
+                <Input placeholder="e.g. Standard Consultation" className="h-9 text-xs" 
+                  value={templateForm.name} onChange={(e) => setTemplateForm({...templateForm, name: e.target.value})} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-sans">Category</Label>
+                <Input placeholder="e.g. Litigation, Advisory" className="h-9 text-xs" 
+                  value={templateForm.category} onChange={(e) => setTemplateForm({...templateForm, category: e.target.value})} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-sans">Description (Optional)</Label>
+              <Textarea placeholder="Short description..." className="text-xs min-h-[60px]" 
+                value={templateForm.description} onChange={(e) => setTemplateForm({...templateForm, description: e.target.value})} />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-sans">Default Line Items</Label>
+                <Button variant="ghost" size="sm" className="text-[10px] h-6 gap-1 text-primary" 
+                  onClick={() => setTemplateForm({...templateForm, items: [...templateForm.items, { description: '', hours: 1, rate: '', amount: 0 }]})}>
+                  <Plus className="h-3 w-3" />Add Item
+                </Button>
+              </div>
+              {templateForm.items.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-8 space-y-1">
+                    {idx === 0 && <Label className="text-[10px] font-sans text-muted-foreground">Description</Label>}
+                    <Input placeholder="Service description" className="h-8 text-xs" 
+                      value={item.description} onChange={(e) => {
+                        const newItems = [...templateForm.items];
+                        newItems[idx].description = e.target.value;
+                        setTemplateForm({...templateForm, items: newItems});
+                      }} />
+                  </div>
+                  <div className="col-span-3 space-y-1">
+                    {idx === 0 && <Label className="text-[10px] font-sans text-muted-foreground">Default Rate</Label>}
+                    <Input type="number" placeholder="Rate" className="h-8 text-xs" 
+                      value={item.rate} onChange={(e) => {
+                        const newItems = [...templateForm.items];
+                        newItems[idx].rate = e.target.value;
+                        setTemplateForm({...templateForm, items: newItems});
+                      }} />
+                  </div>
+                  <div className="col-span-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        const newItems = templateForm.items.filter((_, i) => i !== idx);
+                        setTemplateForm({...templateForm, items: newItems});
+                      }}><X className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <DialogClose asChild><Button variant="outline" size="sm" className="text-xs font-sans">Cancel</Button></DialogClose>
+            <Button size="sm" className="bg-gradient-primary text-xs font-sans" onClick={handleCreateTemplate}>Save Template</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

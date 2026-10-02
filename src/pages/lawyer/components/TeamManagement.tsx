@@ -43,6 +43,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import AddHearingDialog from './AddHearingDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 // ── Types ──
 interface TeamMember {
@@ -79,41 +89,7 @@ interface ActivityLog {
   type: 'case' | 'document' | 'note' | 'billing' | 'login';
 }
 
-// ── Data ──
-const teamMembers: TeamMember[] = [
-  { id: 1, name: 'Adv. Sara Malik', role: 'Administrator', email: 'sara@lawfirm.pk', phone: '+92 300 111 2233', activeCases: 8, tasksCompleted: 45, tasksPending: 3, status: 'Available', specialization: 'Corporate Law', joinedDate: 'Jan 2022' },
-  { id: 2, name: 'Adv. Hassan Raza', role: 'Junior Lawyer', email: 'hassan@lawfirm.pk', phone: '+92 321 444 5566', activeCases: 6, tasksCompleted: 32, tasksPending: 5, status: 'In Court', specialization: 'Criminal Law', joinedDate: 'Jun 2023' },
-  { id: 3, name: 'Adv. Ayesha Khan', role: 'Junior Lawyer', email: 'ayesha@lawfirm.pk', phone: '+92 333 777 8899', activeCases: 4, tasksCompleted: 28, tasksPending: 2, status: 'Available', specialization: 'Civil Litigation', joinedDate: 'Mar 2023' },
-  { id: 4, name: 'Zain Ahmed', role: 'Clerk', email: 'zain@lawfirm.pk', phone: '+92 312 222 3344', activeCases: 0, tasksCompleted: 67, tasksPending: 8, status: 'Busy', specialization: 'Court Filing & Scheduling', joinedDate: 'Sep 2022' },
-  { id: 5, name: 'Hira Noor', role: 'Clerk', email: 'hira@lawfirm.pk', phone: '+92 345 555 6677', activeCases: 0, tasksCompleted: 54, tasksPending: 4, status: 'Available', specialization: 'Administration & Records', joinedDate: 'Nov 2022' },
-];
 
-const tasks: Task[] = [
-  { id: 1, title: 'Research precedents for Khan Industries appeal', assignedTo: 'Adv. Hassan Raza', assignedBy: 'Adv. Sara Malik', dueDate: '2025-07-15', priority: 'High', status: 'In Progress', type: 'Research' },
-  { id: 2, title: 'Draft bail application — State v. Ali Raza', assignedTo: 'Adv. Ayesha Khan', assignedBy: 'Adv. Sara Malik', dueDate: '2025-07-12', priority: 'High', status: 'Pending', type: 'Drafting' },
-  { id: 3, title: 'File written statement in Civil Suit #2847', assignedTo: 'Zain Ahmed', assignedBy: 'Adv. Sara Malik', dueDate: '2025-07-18', priority: 'Medium', status: 'Pending', type: 'Filing' },
-  { id: 4, title: 'Prepare case bundle for Supreme Court hearing', assignedTo: 'Adv. Hassan Raza', assignedBy: 'Adv. Sara Malik', dueDate: '2025-07-20', priority: 'High', status: 'In Progress', type: 'Case Prep' },
-  { id: 5, title: 'Scan and upload property documents — Islamabad Realty', assignedTo: 'Hira Noor', assignedBy: 'Adv. Sara Malik', dueDate: '2025-07-14', priority: 'Low', status: 'Completed', type: 'Filing' },
-  { id: 6, title: 'Research Section 498-A applicability in Lahore HC', assignedTo: 'Adv. Ayesha Khan', assignedBy: 'Adv. Sara Malik', dueDate: '2025-07-22', priority: 'Medium', status: 'In Progress', type: 'Research' },
-];
-
-const activityLogs: ActivityLog[] = [
-  { id: 1, member: 'Adv. Hassan Raza', action: 'Accessed case file', target: 'Khan Industries v. Tax Authority', timestamp: '10 min ago', type: 'case' },
-  { id: 2, member: 'Hira Noor', action: 'Uploaded document', target: 'Property Survey Report.pdf', timestamp: '25 min ago', type: 'document' },
-  { id: 3, member: 'Adv. Ayesha Khan', action: 'Added case note', target: 'State v. Ali Raza', timestamp: '1 hour ago', type: 'note' },
-  { id: 4, member: 'Zain Ahmed', action: 'Filed court document', target: 'Civil Suit #2847 — Written Statement', timestamp: '2 hours ago', type: 'document' },
-  { id: 5, member: 'Adv. Hassan Raza', action: 'Updated billing entry', target: 'Khan Industries — ₨ 150,000', timestamp: '3 hours ago', type: 'billing' },
-  { id: 6, member: 'Adv. Ayesha Khan', action: 'Logged in', target: 'Mobile App', timestamp: '4 hours ago', type: 'login' },
-  { id: 7, member: 'Hira Noor', action: 'Accessed case file', target: 'Ahmed Real Estate — Sale Deed', timestamp: '5 hours ago', type: 'case' },
-];
-
-const firmCalendar = [
-  { time: '09:00 AM', lawyer: 'Adv. Sara Malik', hearing: 'Khan Industries v. Tax Authority', court: 'Lahore High Court', color: 'bg-success' },
-  { time: '10:30 AM', lawyer: 'Adv. Hassan Raza', hearing: 'State v. Ali Raza', court: 'Sessions Court, Lahore', color: 'bg-primary' },
-  { time: '11:00 AM', lawyer: 'Adv. Ayesha Khan', hearing: 'Fatima Bibi v. Akram', court: 'Family Court, Lahore', color: 'bg-gold' },
-  { time: '02:00 PM', lawyer: 'Adv. Sara Malik', hearing: 'Ahmed Real Estate — Injunction', court: 'Civil Court, Lahore', color: 'bg-primary' },
-  { time: '03:30 PM', lawyer: 'Adv. Hassan Raza', hearing: 'Islamabad Developers — NAB Reference', court: 'NAB Court, Lahore', color: 'bg-destructive' },
-];
 
 const statusColor: Record<string, string> = {
   Available: 'bg-success/10 text-success border-success/20',
@@ -147,10 +123,15 @@ const taskStatusIcon: Record<string, React.ElementType> = {
 
 const activityIcon: Record<string, React.ElementType> = {
   case: Briefcase,
+  caseaccess: Briefcase,
   document: FileText,
+  documentupload: FileText,
   note: MessageSquare,
+  noteadded: MessageSquare,
   billing: Activity,
+  billingupdate: Activity,
   login: Eye,
+  other: Activity,
 };
 
 type TabKey = 'members' | 'tasks' | 'activity' | 'calendar';
@@ -165,7 +146,11 @@ const fadeIn = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, 
 
 export default function TeamManagement() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('members');
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+
+
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [taskFilter, setTaskFilter] = useState<string>('all');
@@ -180,39 +165,60 @@ export default function TeamManagement() {
   const [members, setMembers] = useState<any[]>([]);
   const [allTasks, setAllTasks] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [calendar, setCalendar] = useState<any[]>([]);
+
+  const currentUserTeamMember = members.find(m => (m.userId === user?.id || m.id === user?.id));
+  const isAdministrator = !currentUserTeamMember || currentUserTeamMember.role === 'Administrator';
+
+  // Task Assign Form State
+  const [assignTaskOpen, setAssignTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskAssignedTo, setTaskAssignedTo] = useState('');
+  const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskPriority, setTaskPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
+  const [taskType, setTaskType] = useState<'Research' | 'Drafting' | 'Case Prep' | 'Filing'>('Research');
+  const [assigningTask, setAssigningTask] = useState(false);
 
   useEffect(() => {
     async function loadTeamData() {
       try {
         setLoading(true);
-        const [membersRes, tasksRes, activitiesRes] = await Promise.allSettled([
+        const [membersRes, tasksRes, activitiesRes, calendarRes] = await Promise.allSettled([
           api.getTeamMembers(),
           api.getTeamTasks(),
-          api.getTeamActivity()
+          api.getTeamActivity(),
+          api.getFirmCalendar()
         ]);
 
-        if (membersRes.status === 'fulfilled' && membersRes.value && membersRes.value.length > 0) {
+        if (membersRes.status === 'fulfilled' && membersRes.value) {
           setMembers(membersRes.value);
         } else {
-          setMembers(teamMembers);
+          setMembers([]);
         }
 
-        if (tasksRes.status === 'fulfilled' && tasksRes.value && tasksRes.value.length > 0) {
+        if (tasksRes.status === 'fulfilled' && tasksRes.value) {
           setAllTasks(tasksRes.value);
         } else {
-          setAllTasks(tasks);
+          setAllTasks([]);
         }
 
-        if (activitiesRes.status === 'fulfilled' && activitiesRes.value && activitiesRes.value.length > 0) {
+        if (activitiesRes.status === 'fulfilled' && activitiesRes.value) {
           setActivities(activitiesRes.value);
         } else {
-          setActivities(activityLogs);
+          setActivities([]);
+        }
+
+        if (calendarRes.status === 'fulfilled' && calendarRes.value) {
+          setCalendar(calendarRes.value);
+        } else {
+          setCalendar([]);
         }
       } catch (err) {
-        console.error("Failed to fetch team details from backend. Reverting to elegant mockups", err);
-        setMembers(teamMembers);
-        setAllTasks(tasks);
-        setActivities(activityLogs);
+        console.error("Failed to fetch team details from backend.", err);
+        setMembers([]);
+        setAllTasks([]);
+        setActivities([]);
+        setCalendar([]);
       } finally {
         setLoading(false);
       }
@@ -249,6 +255,73 @@ export default function TeamManagement() {
     }
   };
 
+  const handleAssignTask = async () => {
+    if (!taskTitle || !taskAssignedTo || !taskDueDate) return;
+    try {
+      setAssigningTask(true);
+      await api.createTeamTask({
+        title: taskTitle,
+        assignedTo: "", // deprecated string matching
+        assignedToUserId: taskAssignedTo, // New exact ID matching
+        dueDate: new Date(taskDueDate).toISOString(),
+        priority: taskPriority,
+        type: taskType
+      });
+      setAssignTaskOpen(false);
+      setTaskTitle('');
+      setTaskAssignedTo('');
+      
+      const updatedTasks = await api.getTeamTasks();
+      if (updatedTasks && updatedTasks.length > 0) {
+        setAllTasks(updatedTasks);
+      }
+      toast({ title: "Success", description: "Task assigned successfully." });
+    } catch (err: any) {
+      toast({ title: "Task Assignment Failed", description: err.message || "Something went wrong.", variant: "destructive" });
+    } finally {
+      setAssigningTask(false);
+    }
+  };
+
+  const handleUpdateTaskStatus = async (taskId: string, status: string) => {
+    try {
+      await api.updateTeamTaskStatus(taskId, status);
+      const updatedTasks = await api.getTeamTasks();
+      if (updatedTasks && updatedTasks.length > 0) {
+        setAllTasks(updatedTasks);
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateRole = async (memberId: string, role: string) => {
+    try {
+      await api.updateTeamMemberRole(memberId, role);
+      const updatedMembers = await api.getTeamMembers();
+      if (updatedMembers && updatedMembers.length > 0) setMembers(updatedMembers);
+      toast({ title: "Success", description: "Role updated successfully." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm("Are you sure you want to remove this member?")) return;
+    try {
+      await api.removeTeamMember(memberId);
+      const updatedMembers = await api.getTeamMembers();
+      if (updatedMembers && updatedMembers.length > 0) {
+        setMembers(updatedMembers);
+      } else {
+        setMembers([]);
+      }
+      toast({ title: "Success", description: "Member removed successfully." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const filteredTasks = taskFilter === 'all' 
     ? allTasks 
     : allTasks.filter(t => t.status === taskFilter);
@@ -264,19 +337,116 @@ export default function TeamManagement() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {selectedMemberId ? (
+        <div className="space-y-4">
+          <Button variant="ghost" size="sm" onClick={() => setSelectedMemberId(null)} className="h-8 gap-1.5 -ml-2 text-muted-foreground hover:text-foreground">
+            <ArrowRight className="h-4 w-4 rotate-180" /> Back to Team
+          </Button>
+          
+          {(() => {
+            const member = members.find(m => (m.userId || m.id) === selectedMemberId);
+            if (!member) return <p>Member not found</p>;
+            const memberTasks = allTasks.filter(t => t.assignedTo === member.name);
+            const memberActivities = activities.filter(a => a.member === member.name);
+            const RoleIcon = roleIcon[member.role] || Shield;
+            
+            return (
+              <div className="space-y-4">
+                <Card className="border-border/50 shadow-sm overflow-hidden">
+                  <div className={`h-24 w-full bg-gradient-to-r ${member.role === 'Administrator' ? 'from-primary/20 to-primary/5' : 'from-gold/20 to-gold/5'}`} />
+                  <CardContent className="p-5 relative pt-0">
+                    <Avatar className="h-20 w-20 border-4 border-background shadow-sm -mt-10 mb-3 bg-secondary">
+                       <AvatarFallback className="text-xl font-bold font-sans text-primary">{member.name.replace('Adv. ', '').charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h2 className="text-xl font-bold font-sans text-foreground">{member.name}</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                           <Badge variant="outline" className={`text-[10px] font-sans gap-1 ${roleColor[member.role]}`}>
+                             <RoleIcon className="h-3 w-3" /> {member.role}
+                           </Badge>
+                           <Badge variant="outline" className={`text-[10px] font-sans ${statusColor[member.status]}`}>{member.status}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground font-sans mt-2">{member.specialization} · Joined {member.joinedDate}</p>
+                        <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground font-sans">
+                           <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {member.email}</span>
+                           <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {member.phone}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="border-border/50 shadow-sm">
+                    <CardContent className="p-4">
+                      <h3 className="text-sm font-semibold font-sans text-foreground mb-3 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-primary" /> Assigned Tasks
+                      </h3>
+                      {memberTasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground font-sans">No tasks assigned.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                          {memberTasks.map(task => (
+                            <div key={task.id} className="p-3 border rounded-md">
+                              <p className="text-sm font-semibold font-sans text-foreground">{task.title}</p>
+                              <div className="flex gap-2 mt-1">
+                                <Badge variant="secondary" className="text-[9px]">{task.status}</Badge>
+                                <Badge variant="outline" className="text-[9px]">{task.priority}</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-border/50 shadow-sm">
+                    <CardContent className="p-4">
+                      <h3 className="text-sm font-semibold font-sans text-foreground mb-3 flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-primary" /> Recent Activity
+                      </h3>
+                      {memberActivities.length === 0 ? (
+                        <p className="text-xs text-muted-foreground font-sans">No recent activity.</p>
+                      ) : (
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                          {memberActivities.map(log => {
+                            const Icon = activityIcon[log.type] || Activity;
+                            return (
+                              <div key={log.id} className="flex items-start gap-2 border-b last:border-0 pb-2">
+                                <Icon className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <p className="text-xs font-sans text-foreground">{log.action}</p>
+                                  <p className="text-[10px] text-muted-foreground font-sans">{log.target} · {log.timestamp}</p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold font-sans text-foreground">Team & Staff Management</h2>
           <p className="text-xs text-muted-foreground font-sans mt-0.5">{members.length} members · Role-based access control</p>
         </div>
-        <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="bg-gradient-primary font-sans text-xs gap-1.5 h-9">
-              <UserPlus className="h-3.5 w-3.5" /> Invite Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
+        {isAdministrator && (
+          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-gradient-primary font-sans text-xs gap-1.5 h-9">
+                <UserPlus className="h-3.5 w-3.5" /> Invite Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="font-sans text-foreground">Invite Team Member</DialogTitle>
             </DialogHeader>
@@ -307,6 +477,7 @@ export default function TeamManagement() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Summary */}
@@ -347,7 +518,7 @@ export default function TeamManagement() {
             {members.map(member => {
               const RoleIcon = roleIcon[member.role];
               return (
-                <Card key={member.id} className="border-border/50 shadow-sm hover:shadow-md transition-all duration-200">
+                <Card key={member.userId || member.id} onClick={() => setSelectedMemberId(member.userId || member.id)} className="border-border/50 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
                   <CardContent className="p-4">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -386,9 +557,23 @@ export default function TeamManagement() {
                           <p className="text-sm font-bold font-sans text-gold">{member.tasksPending}</p>
                           <p className="text-[10px] text-muted-foreground font-sans">Pending</p>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </Button>
+                        {isAdministrator && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Manage Role</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleUpdateRole(member.userId || member.id, 'Administrator'); }}>Make Administrator</DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleUpdateRole(member.userId || member.id, 'Junior Lawyer'); }}>Make Junior Lawyer</DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleUpdateRole(member.userId || member.id, 'Clerk'); }}>Make Clerk</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveMember(member.userId || member.id); }}>Remove Member</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -409,9 +594,59 @@ export default function TeamManagement() {
                   </Button>
                 ))}
               </div>
-              <Button size="sm" className="bg-gradient-primary font-sans text-xs gap-1.5 h-8">
-                <Plus className="h-3 w-3" /> Assign Task
-              </Button>
+              <Dialog open={assignTaskOpen} onOpenChange={setAssignTaskOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="bg-gradient-primary font-sans text-xs gap-1.5 h-8">
+                    <Plus className="h-3 w-3" /> Assign Task
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="font-sans text-foreground">Assign New Task</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    <div>
+                      <label className="text-xs font-sans text-muted-foreground">Task Title</label>
+                      <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Research case law" className="mt-1 text-sm font-sans" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-sans text-muted-foreground">Assign To</label>
+                      <select value={taskAssignedTo} onChange={e => setTaskAssignedTo(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1 font-sans">
+                        <option value="">Select a member</option>
+                        {members.map(m => (
+                          <option key={m.userId || m.id} value={m.userId || m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-sans text-muted-foreground">Due Date</label>
+                        <Input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} className="mt-1 text-sm font-sans" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-sans text-muted-foreground">Priority</label>
+                        <select value={taskPriority} onChange={e => setTaskPriority(e.target.value as any)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1 font-sans">
+                          <option value="High">High</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Low">Low</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-sans text-muted-foreground">Type</label>
+                      <select value={taskType} onChange={e => setTaskType(e.target.value as any)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1 font-sans">
+                        <option value="Research">Research</option>
+                        <option value="Drafting">Drafting</option>
+                        <option value="Case Prep">Case Prep</option>
+                        <option value="Filing">Filing</option>
+                      </select>
+                    </div>
+                    <Button onClick={handleAssignTask} disabled={assigningTask || !taskTitle || !taskAssignedTo || !taskDueDate} className="w-full bg-gradient-primary font-sans text-sm gap-2 mt-2">
+                      {assigningTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create Task
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="space-y-2">
@@ -435,9 +670,19 @@ export default function TeamManagement() {
                             <Clock className="h-3 w-3 inline mr-0.5" /> Due: {new Date(task.dueDate).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </p>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleUpdateTaskStatus(task.id, 'Pending')}>Mark Pending</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateTaskStatus(task.id, 'In Progress')}>Mark In Progress</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateTaskStatus(task.id, 'Completed')}>Mark Completed</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </CardContent>
                   </Card>
@@ -455,7 +700,7 @@ export default function TeamManagement() {
                 <h3 className="text-sm font-semibold font-sans text-foreground mb-3">Recent Activity — All Team Members</h3>
                 <div className="space-y-0">
                   {activities.map((log, i) => {
-                    const Icon = activityIcon[log.type];
+                    const Icon = activityIcon[log.type] || Activity;
                     return (
                       <div key={log.id} className="flex items-start gap-3 py-3 border-b border-border/30 last:border-0">
                         <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-0.5">
@@ -484,10 +729,10 @@ export default function TeamManagement() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold font-sans text-foreground">Today's Firm-Wide Schedule</h3>
-                  <Badge variant="secondary" className="text-[10px] font-sans">{firmCalendar.length} hearings today</Badge>
+                  <Badge variant="secondary" className="text-[10px] font-sans">{calendar.length} hearings today</Badge>
                 </div>
                 <div className="space-y-2">
-                  {firmCalendar.map((h, i) => (
+                  {calendar.map((h, i) => (
                     <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
                       <div className={`h-10 w-1 rounded-full ${h.color} shrink-0`} />
                       <div className="text-center shrink-0 w-16">
@@ -526,6 +771,8 @@ export default function TeamManagement() {
           </motion.div>
         )}
       </AnimatePresence>
+      </>
+      )}
     </div>
   );
 }

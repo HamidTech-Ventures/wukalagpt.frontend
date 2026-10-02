@@ -12,6 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AddHearingDialog } from './AddHearingDialog';
+import { PrintableWeekCalendar } from './PrintableWeekCalendar';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -163,6 +166,43 @@ export default function HearingCalendar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [courtFilter, setCourtFilter] = useState<CourtType | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handlePrintWeek = async () => {
+    setIsPrinting(true);
+    const element = document.getElementById('printable-week-calendar');
+    if (!element) {
+      setIsPrinting(false);
+      return;
+    }
+    
+    const originalDisplay = element.style.display;
+    element.style.display = 'block';
+    
+    const opt = {
+      margin:       10,
+      filename:     `Weekly_Cause_List_${formatDateShort(getWeekDays(currentDate)[0]).replace(' ', '_')}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+
+    try {
+      await html2pdf().set(opt).from(element).save();
+      toast({ title: 'PDF Downloaded', description: 'Weekly cause list generated successfully.' });
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+      toast({ variant: 'destructive', title: 'Generation Failed', description: 'Could not generate PDF.' });
+    } finally {
+      element.style.display = originalDisplay;
+      setIsPrinting(false);
+    }
+  };
+
+  // Virtual Munshi States
+  const [showMunshiDialog, setShowMunshiDialog] = useState(false);
+  const [isUploadingMunshi, setIsUploadingMunshi] = useState(false);
+  const [munshiResults, setMunshiResults] = useState<any[]>([]);
 
   const loadHearings = async () => {
     try {
@@ -353,6 +393,27 @@ export default function HearingCalendar() {
     }
   };
 
+  const handleMunshiUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    setIsUploadingMunshi(true);
+    setMunshiResults([]);
+    try {
+      const res = await api.uploadCauseList(file);
+      if (res && res.cases) {
+        setMunshiResults(res.cases);
+        toast({ title: "Virtual Munshi", description: `Parsed ${res.cases.length} cases from Cause List.` });
+      }
+    } catch (error) {
+      console.error("Virtual Munshi Error:", error);
+      toast({ title: "Error", description: "Failed to parse cause list.", variant: "destructive" });
+    } finally {
+      setIsUploadingMunshi(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* ── Header ─────────────────────────────────────── */}
@@ -366,14 +427,107 @@ export default function HearingCalendar() {
             <Button variant="outline" size="sm" className="text-xs font-sans h-8 gap-1.5" onClick={() => setShowFilters(!showFilters)}>
               <Filter className="h-3 w-3" /> Filters
             </Button>
-            <Button variant="outline" size="sm" className="text-xs font-sans h-8 gap-1.5">
-              <Printer className="h-3 w-3" /> Print Week
+            <Button variant="outline" size="sm" className="text-xs font-sans h-8 gap-1.5" onClick={handlePrintWeek} disabled={isPrinting}>
+              <Printer className="h-3 w-3" /> {isPrinting ? 'Generating PDF...' : 'Print Week'}
+            </Button>
+            <Button size="sm" className="bg-gradient-secondary font-sans text-xs gap-1.5 h-8 text-white" onClick={() => setShowMunshiDialog(true)}>
+              <FileText className="h-3.5 w-3.5" /> Virtual Munshi AI
             </Button>
             <Button size="sm" className="bg-gradient-primary font-sans text-xs gap-1.5 h-8" onClick={() => setShowAddDialog(true)}>
               <Plus className="h-3.5 w-3.5" /> Add Hearing
             </Button>
           </div>
         </div>
+
+        {/* ── Virtual Munshi Dialog ─────────────────────── */}
+        <Dialog open={showMunshiDialog} onOpenChange={setShowMunshiDialog}>
+          <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden font-sans">
+            <div className="bg-gradient-to-r from-primary/10 to-transparent px-5 py-4 border-b border-border">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-lg text-primary">
+                  <FileText className="h-5 w-5" /> Virtual Munshi: Cause List Parsing
+                </DialogTitle>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Upload a PDF cause list. The AI Munshi will automatically extract dates, judge names, and courtrooms for your cases.
+                </div>
+              </DialogHeader>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto">
+              {munshiResults.length === 0 ? (
+                <div className="text-center py-10 border-2 border-dashed border-border rounded-xl bg-card hover:bg-secondary/30 transition-colors cursor-pointer relative">
+                  <input 
+                    type="file" 
+                    accept=".pdf" 
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                    onChange={handleMunshiUpload}
+                    disabled={isUploadingMunshi}
+                  />
+                  {isUploadingMunshi ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-medium text-foreground">AI Munshi is reading the cause list...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                        <FileText className="h-6 w-6 text-primary" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground mb-1">Click or drag a PDF Cause List here</p>
+                      <p className="text-xs text-muted-foreground">Supported format: PDF</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-foreground">Extracted Cases ({munshiResults.length})</h3>
+                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setMunshiResults([])}>Clear Results</Button>
+                  </div>
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-secondary/50 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Case Title & Number</th>
+                          <th className="px-3 py-2 font-medium">Date</th>
+                          <th className="px-3 py-2 font-medium">Court / Judge</th>
+                          <th className="px-3 py-2 font-medium">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border text-xs">
+                        {munshiResults.map((c, i) => (
+                          <tr key={i} className="hover:bg-secondary/20">
+                            <td className="px-3 py-2">
+                              <p className="font-semibold text-foreground">{c.case_title || 'Unknown Title'}</p>
+                              <p className="text-[10px] text-muted-foreground">{c.case_number}</p>
+                            </td>
+                            <td className="px-3 py-2 font-medium text-primary">{c.date}</td>
+                            <td className="px-3 py-2">
+                              <p className="text-foreground">{c.courtroom}</p>
+                              <p className="text-[10px] text-muted-foreground">{c.judge}</p>
+                            </td>
+                            <td className="px-3 py-2">
+                              <Button size="sm" variant="outline" className="text-[10px] h-6 border-success text-success hover:bg-success/10">Approve</Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Bell className="h-4 w-4 text-primary" />
+                      <p className="text-xs font-semibold text-primary">WhatsApp Automation</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Approving these dates will automatically generate WhatsApp notifications for your clients. You can review them in the Client CRM.
+                    </p>
+                    <Button size="sm" className="w-full text-xs">Approve All & Generate Notifications</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* ── Stat Chips ───────────────────────────────── */}
         <div className="flex gap-2 flex-wrap">
@@ -846,12 +1000,15 @@ export default function HearingCalendar() {
         </DialogContent>
       </Dialog>
 
-      <AddHearingDialog
+      <AddHearingDialog 
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
+        onSuccess={() => loadHearings()}
         cases={cases}
-        onSuccess={loadHearings}
       />
+
+      {/* Hidden Printable Calendar */}
+      <PrintableWeekCalendar hearings={filteredHearings} weekDays={getWeekDays(currentDate)} />
     </div>
   );
 }
